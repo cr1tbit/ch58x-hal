@@ -18,7 +18,9 @@ embassy = ["dep:embassy-sync"]
 ble = []
 
 [dependencies]
-ch58x = { version = "0.3.0", features = ["ch58x", "rt"] }
+# ch58x = { version = "0.3.0", features = ["ch58x", "rt"] }
+ch58x = { path = "vendor/ch58x", features = ["ch58x", "rt"] }
+
 
 critical-section = "1.1.2"
 qingke = { version = "0.1.7", features = ["critical-section-impl"] }
