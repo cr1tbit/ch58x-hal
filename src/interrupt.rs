@@ -5,6 +5,48 @@ pub use qingke::interrupt::Priority;
 use crate::pac::interrupt::Interrupt as InterruptEnum;
 use crate::pac::__EXTERNAL_INTERRUPTS as _;
 
+/// Hardware vector table entries for the peripheral interrupts (IRQ 16..=35).
+///
+/// qingke-rt 0.5 runs `mtvec` in vectored mode: on interrupt N the CPU jumps to the address
+/// stored at `mtvec_base + 4 * N`, and the linker script takes the entries for N >= 16 from
+/// the `.vector_table.external_interrupts` section. The svd2rust PAC keeps its
+/// `__EXTERNAL_INTERRUPTS` in `.rodata` (and indexes it from IRQ 0), so it cannot be used
+/// there; this table takes its place. The handler symbols default to `DefaultHandler` via
+/// the PAC's `device.x` and are overridden with `#[qingke_rt::interrupt]`.
+mod vector_table {
+    extern "C" {
+        fn TMR0();
+        fn GPIOA();
+        fn GPIOB();
+        fn SPI0();
+        fn BLEB();
+        fn BLEL();
+        fn USB();
+        fn USB2();
+        fn TMR1();
+        fn TMR2();
+        fn UART0();
+        fn UART1();
+        fn RTC();
+        fn ADC();
+        fn I2C();
+        fn PWMX();
+        fn TMR3();
+        fn UART2();
+        fn UART3();
+        fn WDOG_BAT();
+    }
+
+    #[doc(hidden)]
+    #[used]
+    #[no_mangle]
+    #[link_section = ".vector_table.external_interrupts"]
+    pub static __CH58X_EXTERNAL_VECTORS: [unsafe extern "C" fn(); 20] = [
+        TMR0, GPIOA, GPIOB, SPI0, BLEB, BLEL, USB, USB2, TMR1, TMR2, // 16..=25
+        UART0, UART1, RTC, ADC, I2C, PWMX, TMR3, UART2, UART3, WDOG_BAT, // 26..=35
+    ];
+}
+
 /// Trait for enums of external interrupt numbers.
 ///
 /// This trait should be implemented by a peripheral access crate (PAC)
