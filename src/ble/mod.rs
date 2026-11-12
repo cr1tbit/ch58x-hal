@@ -17,6 +17,9 @@ pub mod gatt;
 pub mod gatt_uuid;
 pub mod gattservapp;
 pub mod linkdb;
+mod lsi_calibration;
+
+pub use lsi_calibration::{calibrate_lsi, LsiCalibrationError};
 
 const HEAP_SIZE: usize = 1024 * 6;
 
