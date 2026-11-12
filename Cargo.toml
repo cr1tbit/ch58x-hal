@@ -13,8 +13,10 @@ readme = "README.md"
 license = "MIT/Apache-2.0"
 
 [features]
-default = ["ble", "embassy"]
+default = ["ble", "embassy", "executor"]
 embassy = ["dep:embassy-sync"]
+# `hal::embassy::Executor` and its `__pender`. Don't combine with embassy-executor's arch-* features.
+executor = ["embassy", "dep:embassy-executor"]
 ble = []
 
 [dependencies]
@@ -35,6 +37,7 @@ embedded-hal-nb = "1.0.0"
 embedded-hal-async = "1.0.0"
 
 embassy-sync = { version = "0.6.2", optional = true }
+embassy-executor = { version = "0.7.0", optional = true }
 embassy-time-driver = { version = "0.2.0", features = ["tick-hz-32_768"] }
 embassy-time-queue-utils = "0.1.0" # time driver impl
 embassy-usb-driver = "0.1"
@@ -47,11 +50,7 @@ panic-halt = "0.2.0"
 ssd1306 = "0.8.4"
 
 embassy-futures = "0.1.1"
-embassy-executor = { version = "0.7.0", features = [
-    "nightly",
-    "arch-riscv32",
-    "executor-thread",
-] }
+embassy-executor = { version = "0.7.0", features = ["nightly"] }
 embassy-time = { version = "0.4.0" }
 # embassy time driver
 heapless = "0.8.0"

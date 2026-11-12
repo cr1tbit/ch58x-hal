@@ -220,8 +220,13 @@ async fn peripheral(task_id: u8, subscriber: ble::EventSubscriber) {
     }
 }
 
-#[embassy_executor::main(entry = "qingke_rt::entry")]
-async fn main(spawner: Spawner) -> ! {
+#[qingke_rt::entry]
+fn main() -> ! {
+    hal::embassy::Executor::new().run(|spawner| spawner.must_spawn(app_main(spawner)))
+}
+
+#[embassy_executor::task]
+async fn app_main(spawner: Spawner) -> ! {
     use hal::ble::ffi::*;
 
     let mut config = hal::Config::default();

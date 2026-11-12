@@ -68,15 +68,7 @@ async fn log_session<'d>(class: &mut CdcAcmClass<'d, Driver<'d, hal::peripherals
 
 #[qingke_rt::entry]
 fn main() -> ! {
-    // Poll the executor continuously: with qingke-rt's WFE-based idle, a pending USB interrupt
-    // does not always wake the CPU (same workaround as the cyberlamp firmware).
-    let executor = embassy_executor::raw::Executor::new(core::ptr::null_mut());
-    // SAFETY: main never returns and the executor is never moved; only this thread polls it.
-    let executor: &'static embassy_executor::raw::Executor = unsafe { &*(&executor as *const _) };
-    executor.spawner().spawn(run()).unwrap();
-    loop {
-        unsafe { executor.poll() };
-    }
+    hal::embassy::Executor::new().run(|spawner| spawner.must_spawn(run()))
 }
 
 #[embassy_executor::task]

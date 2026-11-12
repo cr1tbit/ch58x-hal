@@ -48,8 +48,13 @@ async fn reset_if_requested(pin: AnyPin) {
     }
 }
 
-#[embassy_executor::main(entry = "qingke_rt::entry")]
-async fn main(spawner: Spawner) -> ! {
+#[qingke_rt::entry]
+fn main() -> ! {
+    hal::embassy::Executor::new().run(|spawner| spawner.must_spawn(app_main(spawner)))
+}
+
+#[embassy_executor::task]
+async fn app_main(spawner: Spawner) -> ! {
     let mut config = hal::Config::default();
     config.clock.use_pll_60mhz().enable_lse();
     let p = hal::init(config);

@@ -158,9 +158,9 @@ pub fn init(config: Config) -> Peripherals {
 
     config.clock.freeze();
 
-    // qingke-rt 0.5 turns WFI into WFE (PFIC_SCTLR.WFITOWFE). Executors sleep with interrupts
-    // masked, and in WFE mode a masked pending interrupt is not a wake event, so the CPU would
-    // never wake up again. SEVONPEND makes every pending interrupt a wake event.
+    // qingke-rt 0.5 turns WFI into WFE (PFIC_SCTLR.WFITOWFE). SEVONPEND makes every interrupt
+    // that becomes pending a wake event, also while interrupts are masked. See
+    // `embassy::executor` for the idle loop that relies on this.
     unsafe {
         const PFIC_SCTLR: *mut u32 = 0xE000_ED10 as *mut u32;
         const SEVONPEND: u32 = 1 << 4;

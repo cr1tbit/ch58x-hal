@@ -25,9 +25,13 @@
 //! one endpoint from blocking the others. Reads are cancel-safe: data received after a read
 //! was dropped stays in the buffer for the next read.
 //!
-//! Known issue: with qingke-rt's WFE-based idle (`#[embassy_executor::main]`), a pending USB
-//! interrupt does not always wake the CPU and enumeration stalls. Poll the executor
-//! continuously instead, see `examples/usb-cdc.rs`.
+//! Run it on [`crate::embassy::Executor`]. With embassy-executor's `arch-riscv32` executor a
+//! pending USB interrupt does not wake the CPU and enumeration stalls.
+//!
+//! The controller raises its interrupt for every SOF and every NAKed token, even though only
+//! bus reset, suspend and transfer interrupts are enabled: about 1000/s on an idle bus and
+//! about 23000/s while the host polls an IN endpoint (e.g. an open CDC port). The handler
+//! finds no flag and returns, but the CPU wakes up each time.
 //!
 //! Register reference: WCH SDK `CH583SFR.h`, `CH58x_usbdev.c`.
 
