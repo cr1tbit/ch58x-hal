@@ -11,8 +11,11 @@ fn main() {
     }
 
     fs::write(out_dir.join("memory.x"), include_bytes!("memory.x")).unwrap();
+    // qingke-rt's link script with a fix for the WCH libraries, use with `-Tlink-ch58x.x`
+    fs::write(out_dir.join("link-ch58x.x"), include_bytes!("link-ch58x.x")).unwrap();
     println!("cargo:rustc-link-search={}", out_dir.display());
 
     println!("cargo:rerun-if-changed=memory.x");
+    println!("cargo:rerun-if-changed=link-ch58x.x");
     println!("cargo:rerun-if-changed=build.rs");
 }

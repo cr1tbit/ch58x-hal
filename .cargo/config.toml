@@ -15,7 +15,7 @@ runner = "wlink -v flash"
 rustflags = [
     # "-C", "link-arg=-Tmemory.x",
     "-C",
-    "link-arg=-Tlink.x",
+    "link-arg=-Tlink-ch58x.x",
     # "--emit", "obj",
     # "--emit", "asm",
 ]
