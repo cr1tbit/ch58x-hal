@@ -187,13 +187,16 @@ pub fn init(
 
     // No SNV (SNVAddr, SNVBlock, SNVNum, readFlashCB, writeFlashCB)
 
-    cfg.SelRTCClock = 0; // use LSE: ( 0 外部(32768Hz)，默认:1：内部(32000Hz)，2：内部(32768Hz)
+    // 0: LSE (32768 Hz crystal), 1: LSI (32000 Hz), 2: LSI (32768 Hz).
+    // Follow whatever `sysctl` selected as the CK32K source; boards without a crystal run on LSI.
+    let sys = unsafe { &*pac::SYS::PTR };
+    cfg.SelRTCClock = if sys.ck32k_config().read().clk_osc32k_xt().bit_is_set() { 0 } else { 1 };
 
     cfg.ConnectNumber = (PERIPHERAL_MAX_CONNECTION & 3) | (CENTRAL_MAX_CONNECTION << 2);
 
     cfg.srandCB = Some(srand); // tmos_rand will call this
 
-    cfg.rcCB = None; // use LSE, no calibrate
+    cfg.rcCB = None; // TODO: LSI calibration (Lib_Calibration_LSI) when running on LSI
     cfg.tsCB = Some(temperature_raw);
 
     // No need to set HAL_SLEEP(WakeUpTIme, sleepCB)

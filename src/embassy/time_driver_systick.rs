@@ -112,7 +112,13 @@ impl Driver for SystickDriver {
 
 #[qingke_rt::interrupt]
 fn SysTick() {
+    // Keep interrupts masked for the whole handler, and let `mret` restore the interrupt
+    // state saved on entry (MPIE). Re-enabling MIE before `mret` allows a nested interrupt
+    // there, which clears MPIE, and the outer `mret` then leaves interrupts disabled for good.
+    let irq_before = qingke::register::gintenr::set_disable();
+    unsafe { core::arch::asm!("fence.i", options(nostack)) };
     DRIVER.on_interrupt();
+    unsafe { qingke::register::gintenr::write(irq_before & !0x8) };
 }
 
 pub(crate) fn init() {

@@ -1,10 +1,10 @@
 [build]
-target = "riscv32imac-unknown-none-elf"
+target = "riscv32imc-unknown-none-elf"
 
 [alias]
 run-demo = "run --release --example"
 
-[target.riscv32imac-unknown-none-elf]
+[target.riscv32imc-unknown-none-elf]
 # runner = "wchisp flash"
 # runner = "wlink -v flash --dry-run"
 runner = "wlink -v flash"
