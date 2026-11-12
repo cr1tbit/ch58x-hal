@@ -26,6 +26,8 @@ pub mod sysctl;
 pub mod systick;
 pub mod timer;
 pub mod uart;
+#[cfg(feature = "embassy")]
+pub mod usb;
 
 pub mod interrupt;
 pub mod isp;
