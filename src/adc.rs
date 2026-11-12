@@ -154,7 +154,7 @@ pub struct Vbat;
 impl AdcPin<peripherals::ADC> for Vbat {}
 impl sealed::AdcPin<peripherals::ADC> for Vbat {
     fn channel(&self) -> u8 {
-        15
+        14 // CH_INTE_VBAT (15 is the temperature sensor)
     }
 }
 
