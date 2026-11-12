@@ -20,6 +20,7 @@ crate::peripherals! {
     TKEY <= virtual,
 
     USB <= USB,
+    USB2 <= USB2,
 
     TMR0 <= TMR0,
     TMR1 <= TMR1,

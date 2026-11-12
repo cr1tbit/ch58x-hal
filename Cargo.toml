@@ -37,6 +37,7 @@ embedded-hal-async = "1.0.0"
 embassy-sync = { version = "0.6.2", optional = true }
 embassy-time-driver = { version = "0.2.0", features = ["tick-hz-32_768"] }
 embassy-time-queue-utils = "0.1.0" # time driver impl
+embassy-usb-driver = "0.1"
 
 [dev-dependencies]
 display-interface = "0.4.1"
@@ -56,6 +57,7 @@ embassy-time = { version = "0.4.0" }
 heapless = "0.8.0"
 embedded-alloc = "0.6.0"
 embedded-sdmmc = "0.8.1"
+embassy-usb = "0.4"
 
 [profile.release]
 # panic = "unwind"
