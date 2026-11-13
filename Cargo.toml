@@ -18,6 +18,9 @@ embassy = ["dep:embassy-sync"]
 # `hal::embassy::Executor` and its `__pender`. Don't combine with embassy-executor's arch-* features.
 executor = ["embassy", "dep:embassy-executor"]
 ble = []
+# embassy time from the RTC instead of SysTick: keeps running while the chip sleeps. Needs
+# `hal::embassy::Executor` (it arms the RTC trigger for timers).
+time-driver-rtc = ["executor"]
 
 [dependencies]
 # ch58x 0.4.0 is not on crates.io yet, see vendor/README.md

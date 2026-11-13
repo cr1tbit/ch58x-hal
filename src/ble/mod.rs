@@ -205,6 +205,12 @@ pub fn init(
 
     // TMOS reports its next event here when idle, see `stack`.
     cfg.sleepCB = Some(stack::on_idle);
+    // Crystal start-up margin the library builds into the deadlines it reports (the SDK's
+    // WAKE_UP_RTC_MAX_TIME); the sleep callback then sleeps right up to them.
+    #[cfg(feature = "time-driver-rtc")]
+    {
+        cfg.WakeUpTime = crate::embassy::deep_sleep::WAKE_UP_TICKS as _;
+    }
 
     cfg.MacAddr = config.mac_addr.0;
 

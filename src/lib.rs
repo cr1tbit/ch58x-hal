@@ -18,6 +18,8 @@ pub mod i2c;
 pub mod ble;
 pub mod delay;
 pub mod rtc;
+#[cfg(any(feature = "ble", feature = "time-driver-rtc"))]
+pub mod rtc_wake;
 pub mod safe_access;
 pub mod signature;
 pub mod spi;

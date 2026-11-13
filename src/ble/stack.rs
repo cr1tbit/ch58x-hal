@@ -3,9 +3,8 @@
 //! [`crate::embassy::Executor`] calls [`process`] after every poll, i.e. after every interrupt
 //! (the radio's interrupts included) and every task wake-up, so the stack sees new radio events
 //! and API calls right away. When TMOS has nothing left to do, the BLE library reports the RTC
-//! time of its next event through the sleep callback (`bleConfig_t::sleepCB`). [`process`]
-//! arms the RTC trigger for that time, and the executor sleeps until then or until another
-//! interrupt.
+//! time of its next event through the sleep callback (`bleConfig_t::sleepCB`); the executor
+//! arms the RTC trigger for it (`rtc_wake`) and sleeps until then or until another interrupt.
 //!
 //! Measured on a CH582F (1 s advertising): the old 300 µs polling woke the CPU ~3300 times per
 //! second, while TMOS was reporting its next event 0.5 s ahead on average.
@@ -16,16 +15,14 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use critical_section::Mutex;
 
 use super::ffi::TMOS_SystemProcess;
-use crate::pac;
-use crate::safe_access::safe_modify;
-
-/// `RTC_MAX_COUNT` in the WCH SDK: the 32 kHz counter wraps to 0 here (one day).
-const RTC_MAX_COUNT: u32 = 0xA8C0_0000;
-/// Don't arm the trigger for less than this many 32 kHz ticks ahead: the counter must not
-/// pass the trigger value before it is written. Process again right away instead.
-const MIN_TICKS_AHEAD: u32 = 2;
+use crate::rtc_wake;
 
 static STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Whether `ble::init` ran: from then on the BLE stack's sleep callback does the sleeping.
+pub fn is_started() -> bool {
+    STARTED.load(Ordering::Acquire)
+}
 /// Set by the sleep callback during `TMOS_SystemProcess`: TMOS is idle until this RTC count.
 static NEXT_EVENT: Mutex<Cell<Option<u32>>> = Mutex::new(Cell::new(None));
 
@@ -33,68 +30,74 @@ static NEXT_EVENT: Mutex<Cell<Option<u32>>> = Mutex::new(Cell::new(None));
 /// i.e. "did not sleep" (the WCH SDK's `CH58X_LowPower` returns 0 after sleeping).
 pub(super) unsafe extern "C" fn on_idle(next_event: u32) -> u32 {
     critical_section::with(|cs| NEXT_EVENT.borrow(cs).set(Some(next_event)));
+    #[cfg(feature = "time-driver-rtc")]
+    if crate::embassy::deep_sleep::ENABLED.load(Ordering::Relaxed) {
+        return sleep_in_callback(next_event);
+    }
     1
+}
+
+/// Sleep mode inside the library's sleep callback, as the WCH SDK does (`CH58X_LowPower`):
+/// returning 0 tells the library that the chip slept, so it resynchronises its radio timing.
+/// `next_event` already includes the crystal start-up margin (`bleConfig_t::WakeUpTime`).
+/// Wakes earlier for an embassy timer. Returns 0 if it slept, 2 otherwise (like the SDK).
+#[cfg(feature = "time-driver-rtc")]
+fn sleep_in_callback(next_event: u32) -> u32 {
+    use crate::embassy::deep_sleep::{sleep_then_settle, WAKE_UP_TICKS};
+    let now = rtc_wake::now_ticks();
+    let ahead = rtc_wake::ticks_until(rtc_wake::count_at(now), next_event);
+    if ahead >= rtc_wake::DAY_TICKS / 2 {
+        return 2; // already passed
+    }
+    let ble_wake = now + ahead as u64;
+    // expired timers wake their tasks here (and then nothing sleeps)
+    let (wake_at, settled_at) = match crate::embassy::time_driver_rtc::next_alarm() {
+        Some(timer) if timer.saturating_sub(WAKE_UP_TICKS) < ble_wake => (timer.saturating_sub(WAKE_UP_TICKS), Some(timer)),
+        _ => (ble_wake, None),
+    };
+    if sleep_then_settle(wake_at, settled_at) {
+        0
+    } else {
+        2
+    }
 }
 
 /// Called at the end of `ble::init`: TMOS may run from now on, the RTC trigger wakes the CPU.
 pub(super) fn start() {
-    let rtc = unsafe { &*pac::RTC::PTR };
-    rtc.flag_ctrl().modify(|_, w| w.trig_clr().set_bit());
-    safe_modify(rtc.mode_ctrl(), |_, w| w.trig_en().set_bit());
-    unsafe { qingke::pfic::enable_interrupt(pac::Interrupt::RTC as u8) };
+    rtc_wake::enable();
     STARTED.store(true, Ordering::Release);
 }
 
-/// The RTC's 32 kHz counter (`R32_RTC_CNT_32K`), the BLE library's time base.
-pub fn rtc_count() -> u32 {
-    let rtc = unsafe { &*pac::RTC::PTR };
-    // the 32-bit register spans CNT_32K and CNT_2S; read until two reads agree
-    let reg = rtc.cnt_32k() as *const _ as *const u32;
-    loop {
-        let a = unsafe { reg.read_volatile() };
-        if a == unsafe { reg.read_volatile() } {
-            return a;
-        }
-    }
+/// What the BLE stack needs after [`process`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Next {
+    /// More work: run [`process`] again without sleeping.
+    Busy,
+    /// Idle until this monotonic RTC time (`rtc_wake::now_ticks`), or BLE isn't running (`None`).
+    IdleUntil(Option<u64>),
 }
 
-/// Ticks from `now` until `then`, across the counter's wrap at [`RTC_MAX_COUNT`].
-fn ticks_until(now: u32, then: u32) -> u32 {
-    if then >= now {
-        then - now
-    } else {
-        then + (RTC_MAX_COUNT - now)
-    }
-}
-
-/// Run TMOS once. Returns `true` if it is idle and the RTC trigger is armed for its next
-/// event, so the CPU may sleep; `false` if it has more work and must run again right away.
-/// Does nothing (returns `true`) before `ble::init`. Thread mode only.
+/// Run TMOS once (nothing before `ble::init`). Thread mode only.
 ///
-/// [`crate::embassy::Executor`] calls this; call it yourself only with your own executor loop.
-pub fn process() -> bool {
+/// [`crate::embassy::Executor`] calls this; call it yourself only with your own executor loop,
+/// and arm `rtc_wake` for the returned time before sleeping.
+pub fn process() -> Next {
     if !STARTED.load(Ordering::Acquire) {
-        return true;
+        return Next::IdleUntil(None);
     }
     critical_section::with(|cs| NEXT_EVENT.borrow(cs).set(None));
     unsafe { TMOS_SystemProcess() };
-    let Some(next_event) = critical_section::with(|cs| NEXT_EVENT.borrow(cs).get()) else {
-        return false; // still busy
-    };
-    if ticks_until(rtc_count(), next_event) < MIN_TICKS_AHEAD {
-        return false;
+    match critical_section::with(|cs| NEXT_EVENT.borrow(cs).get()) {
+        None => Next::Busy,
+        Some(event) => {
+            let now = rtc_wake::now_ticks();
+            let ahead = rtc_wake::ticks_until(rtc_wake::count_at(now), event);
+            // a deadline that already passed shows up as almost a day ahead
+            if ahead >= rtc_wake::DAY_TICKS / 2 {
+                Next::Busy
+            } else {
+                Next::IdleUntil(Some(now + ahead as u64))
+            }
+        }
     }
-    let rtc = unsafe { &*pac::RTC::PTR };
-    safe_modify(rtc.trig(), |_, w| unsafe { w.bits(next_event) });
-    // The deadline may have passed while the trigger was written: run again instead of
-    // sleeping past it (the trigger fires only when the counter equals it).
-    ticks_until(rtc_count(), next_event) >= 1 && ticks_until(rtc_count(), next_event) < RTC_MAX_COUNT / 2
-}
-
-/// RTC interrupt: the trigger (TMOS deadline) or the periodic timer fired. Waking the CPU is
-/// all it has to do; the executor then runs [`process`].
-#[qingke_rt::interrupt]
-fn RTC() {
-    let rtc = unsafe { &*pac::RTC::PTR };
-    rtc.flag_ctrl().write(|w| w.trig_clr().set_bit().tmr_clr().set_bit());
 }
