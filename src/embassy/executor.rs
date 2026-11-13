@@ -81,6 +81,12 @@ impl Executor {
         loop {
             // SAFETY: only this thread polls the executor, never from the pender.
             unsafe { this.inner.poll() };
+            // BLE stack: runs after every interrupt and task wake-up; if it still has work,
+            // poll again instead of sleeping (see `ble::stack`).
+            #[cfg(feature = "ble")]
+            if !crate::ble::stack::process() {
+                continue;
+            }
             // WFE: returns at once if an event was raised since the last WFE, see module docs.
             unsafe { core::arch::asm!("wfi") };
         }

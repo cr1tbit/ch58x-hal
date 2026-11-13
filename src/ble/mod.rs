@@ -18,6 +18,7 @@ pub mod gatt_uuid;
 pub mod gattservapp;
 pub mod linkdb;
 mod lsi_calibration;
+pub mod stack;
 
 pub use lsi_calibration::{calibrate_lsi, LsiCalibrationError};
 
@@ -202,7 +203,8 @@ pub fn init(
     cfg.rcCB = None; // TODO: LSI calibration (Lib_Calibration_LSI) when running on LSI
     cfg.tsCB = Some(temperature_raw);
 
-    // No need to set HAL_SLEEP(WakeUpTIme, sleepCB)
+    // TMOS reports its next event here when idle, see `stack`.
+    cfg.sleepCB = Some(stack::on_idle);
 
     cfg.MacAddr = config.mac_addr.0;
 
@@ -222,6 +224,9 @@ pub fn init(
             // trigger PA init immediately
             tmos_start_task(hal_task_id, HAL_PA_INIT_EVENT, 0);
         }
+
+        // from now on the executor runs TMOS (`stack::process`)
+        stack::start();
 
         Ok((hal_task_id, CHANNEL.subscriber().unwrap()))
     }
