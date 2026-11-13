@@ -51,8 +51,23 @@ pub static SLEEPS: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32
 /// 32 kHz ticks spent in sleep mode (wraps after ~36 h), for diagnostics.
 pub static SLEPT_TICKS: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
 
-/// Set by `Executor::run` when sleep mode is enabled.
+/// Sleep mode on/off: set by `Executor::run` from `with_deep_sleep`, changed by [`set_enabled`].
 pub(crate) static ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Switch sleep mode on or off at runtime (`Executor::with_deep_sleep` sets the start value).
+///
+/// The debug probe can't attach while the chip sleeps: a debug request doesn't wake it from
+/// sleep mode. Firmware that sleeps right after boot can then only be flashed by holding BOOT
+/// through a power cycle. Starting without sleep mode for a few seconds after boot, then
+/// enabling it here, leaves a window to attach after any reset or power cycle.
+pub fn set_enabled(on: bool) {
+    ENABLED.store(on, Ordering::Relaxed);
+}
+
+/// Whether sleep mode is on.
+pub fn is_enabled() -> bool {
+    ENABLED.load(Ordering::Relaxed)
+}
 
 /// Executor path (no BLE running): sleep until `at` minus [`WAKE_UP_TICKS`]; the executor then
 /// idles until `at` while the crystal settles. Returns whether it slept.

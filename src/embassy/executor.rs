@@ -104,7 +104,7 @@ impl Executor {
             };
             // With BLE running, the BLE stack's sleep callback sleeps (see `ble::stack`).
             #[cfg(feature = "time-driver-rtc")]
-            if this.deep_sleep && !ble_started() {
+            if super::deep_sleep::is_enabled() && !ble_started() {
                 if let Some(at) = wake_at {
                     if super::deep_sleep::sleep_until(at) {
                         // woke early for the crystal: poll, then idle until the deadline
