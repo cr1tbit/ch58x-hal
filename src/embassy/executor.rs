@@ -99,6 +99,8 @@ impl Executor {
             super::deep_sleep::WOKEN.store(false, core::sync::atomic::Ordering::Relaxed);
             // SAFETY: only this thread polls the executor, never from the pender.
             unsafe { this.inner.poll() };
+            // a completed pass: the firmware isn't stuck (see `wdog`)
+            crate::wdog::feed_if_enabled();
             let Some(wake_at) = prepare_sleep() else {
                 continue; // more work
             };
